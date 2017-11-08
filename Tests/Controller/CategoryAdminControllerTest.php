@@ -17,9 +17,11 @@ use Sonata\AdminBundle\Admin\Pool;
 use Sonata\ClassificationBundle\Controller\CategoryAdminController;
 use Sonata\ClassificationBundle\Model\CategoryManagerInterface;
 use Sonata\ClassificationBundle\Model\ContextManagerInterface;
+use Symfony\Bridge\Twig\AppVariable;
 use Symfony\Bridge\Twig\Extension\FormExtension;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Form\Extension\Csrf\CsrfProvider\CsrfProviderInterface;
+use Symfony\Component\Form\FormRenderer;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -133,30 +135,31 @@ class CategoryAdminControllerTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $twigRenderer = $this->createMock('Symfony\Bridge\Twig\Form\TwigRendererInterface');
+        $formRenderer = $this->createMock(FormRenderer::class);
 
-        $formExtension = new FormExtension($twigRenderer);
+        if (method_exists(AppVariable::class, 'getToken')) {
+            $formExtension = new FormExtension();
+        } else {
+            // Remove this else clause when dropping sf < 3.2
+            $formExtension = new FormExtension($formRenderer);
+        }
 
         $twig->expects($this->any())
             ->method('getExtension')
             ->will($this->returnCallback(function ($name) use ($formExtension) {
                 switch ($name) {
                     case 'form':
-                    case 'Symfony\Bridge\Twig\Extension\FormExtension':
+                    case FormExtension::class:
                         return $formExtension;
                 }
             }));
 
         $twig->expects($this->any())
             ->method('getRuntime')
-            ->will($this->returnCallback(function ($name) use ($twigRenderer) {
+            ->will($this->returnCallback(function ($name) use ($formRenderer) {
                 switch ($name) {
-                    case 'Symfony\Bridge\Twig\Form\TwigRenderer':
-                        if (method_exists('Symfony\Bridge\Twig\AppVariable', 'getToken')) {
-                            return $twigRenderer;
-                        }
-
-                        throw new \Twig_Error_Runtime('This runtime exists when Symony >= 3.2.');
+                    case FormRenderer::class:
+                        return $formRenderer;
                 }
             }));
 
